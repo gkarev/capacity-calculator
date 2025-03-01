@@ -132,7 +132,7 @@
     <div class="row">
       <div class="col-lg-8">
         <div class="calculator-section">
-          <h4 class="my-3">📂 Загрузить данные</h4>
+          <h4 class="py-3">📂 Загрузить данные</h4>
           <div class="input-group mb-1">
             <input type="file" class="form-control" accept=".xml" @change="handleFileUpload">
             <button class="btn btn-outline-primary" type="button" @click="loadXml">Загрузить</button>
@@ -141,7 +141,7 @@
         </div>
 
         <div class="calculator-section">
-          <h4 class="my-3">⚙️ Параметры расчета</h4>
+          <h4 class="py-3">⚙️ Параметры расчета</h4>
           <div class="row g-3 mb-3">
             <div class="col-md-4">
               <label class="form-label">Часов в день</label>
@@ -206,7 +206,7 @@
       <div class="col-lg-4">
         <div class="sticky-results">
           <div class="calculator-section">
-            <h4 class="my-3">📊 Результаты</h4>
+            <h4 class="py-3">📊 Результаты</h4>
             <div class="mb-4">
               <div class="alert alert-primary">
                 <h5 class="mb-1">Общая ёмкость:</h5>
@@ -220,7 +220,7 @@
             </div>
 
             <h5 class="mb-3">Индивидуальный вклад:</h5>
-            <div class="d-grid gap-3 my-3">
+            <div class="d-grid gap-3 py-3">
               <div v-for="member in members" :key="member.id" class="d-grid gap-1">
                 <div class="d-flex justify-content-between">
                   <small>{{ member.name || 'Имя сотрудника' }}</small>
