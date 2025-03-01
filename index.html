@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Калькулятор ёмкости команды</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    :root {
+      --background: #1e1e1e;
+      --foreground: #d4d4d4;
+      --border: #3c3c3c;
+      --card-bg: #252526;
+      font-size: 14px;
+    }
+
+    [data-bs-theme="light"] {
+      --background: #ffffff;
+      --foreground: #212529;
+      --border: #dee2e6;
+      --card-bg: #f8f9fa;
+    }
+
+    body {
+      background-color: var(--background);
+      color: var(--foreground);
+      font-family: Trebuchet MS, serif;
+    }
+
+    .calculator-section {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding-inline: 20px;
+      margin-bottom: 20px;
+      background-color: var(--card-bg);
+    }
+
+    .form-control,
+    .form-select {
+      background-color: var(--background);
+      border-color: var(--border);
+      color: var(--foreground);
+    }
+
+    .progress-bar {
+      background-color: #007acc;
+    }
+
+    .input-error {
+      animation: shake 0.5s;
+      border-color: #dc3545 !important;
+    }
+
+    .card-close-btn {
+      padding: 0 0 2px 0;
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-content: center;
+      font-size: 20px;
+    }
+
+    @keyframes shake {
+
+      0%,
+      100% {
+        transform: translateX(0);
+      }
+
+      25% {
+        transform: translateX(-5px);
+      }
+
+      75% {
+        transform: translateX(5px);
+      }
+    }
+
+    .toast-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1100;
+      min-width: 250px;
+    }
+
+    .toast {
+      --bs-toast-color: #fff;
+      --bs-toast-bg: #dc3545;
+      --bs-toast-border-color: var(--border);
+    }
+
+    .sticky-results {
+      position: sticky;
+      top: 20px;
+    }
+
+    @media (max-width: 992px) {
+      .calculator-section {
+        padding-inline: 15px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app" class="container py-5">
+    <div class="toast-container">
+      <div v-for="(error, index) in validationErrors" :key="index" class="toast fade show mb-2 alert-danger" role="alert">
+        <div class="d-flex justify-content-between align-items-center p-3">
+          <div>{{ error }}</div>
+          <button type="button" class="btn-close" @click="removeError(index)" :class="{ 'btn-close-white': darkTheme }">
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="d-flex mb-4 align-items-center gap-2">
+
+      <h2 class="mb-0">
+        👥 Расчёт ёмкости команды ({{ members.length }})
+      </h2>
+      <div class="theme-switcher ms-auto">
+        <button @click="toggleTheme" class="btn btn-outline-secondary">
+          {{ darkTheme ? '🌞' : '🌙' }}
+        </button>
+      </div>
+
+    </div>
+
+    <div class="row">
+      <div class="col-lg-8">
+        <div class="calculator-section">
+          <h4 class="my-3">📂 Загрузить данные</h4>
+          <div class="input-group mb-1">
+            <input type="file" class="form-control" accept=".xml" @change="handleFileUpload">
+            <button class="btn btn-outline-primary" type="button" @click="loadXml">Загрузить</button>
+          </div>
+          <small class="form-text text-muted pb-3 d-block">Поддерживается формат XML с данными сотрудников</small>
+        </div>
+
+        <div class="calculator-section">
+          <h4 class="my-3">⚙️ Параметры расчета</h4>
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label">Часов в день</label>
+              <input type="number" class="form-control" v-model.number="settings.hoursPerDay" min="1" max="8" :class="{ 'input-error': settings.hoursPerDay < 1 || settings.hoursPerDay > 8 }">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Рабочих дней</label>
+              <input type="number" class="form-control" v-model.number="settings.workDays" min="1" max="23" :class="{ 'input-error': settings.workDays < 1 || settings.workDays > 23 }">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">% на баги</label>
+              <input type="number" class="form-control" v-model.number="settings.bugsFactor" min="0" max="25" :class="{ 'input-error': settings.bugsFactor < 0 || settings.bugsFactor > 25 }">
+            </div>
+          </div>
+        </div>
+
+        <div class="calculator-section">
+          <div class="d-flex justify-content-between align-items-center my-3">
+            <h4 class="mb-0">🧑 Состав команды</h4>
+            <button class="btn btn-primary" @click="addMember"><span class="d-none d-md-inline">+</span> Добавить</button>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6" v-for="member in members" :key="member.id">
+              <div class="card">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="card-title">{{ 'Сотрудник' }}</h5>
+                    <button class="card-close-btn btn btn-sm btn-danger" @click="deleteMember(member.id)">×</button>
+                  </div>
+                  <div class="mb-3">
+                    <input type="text" class="form-control" v-model="member.name" maxlength="50" :class="{ 'input-error': !member.name?.trim() }">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Уровень</label>
+                    <select class="form-select" v-model.number="member.level" :class="{ 'input-error': !levels.some(l => l.value === member.level) }">
+                      <option v-for="level in levels" :value="level.value">
+                        {{ level.label }} ({{ level.value }}x)
+                      </option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Дни отпуска</label>
+                    <input type="number" class="form-control" v-model.number="member.vacationDays" :min="0" :max="settings.workDays" :class="{ 'input-error': member.vacationDays < 0 || member.vacationDays > settings.workDays }">
+                    <div class="text-muted small mt-1">
+                      На работе: {{ presenceDays(member) }} дн ({{ presencePercent(member) }}%)
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="calculator-section">
+          <div class="d-flex justify-content-between align-items-center py-3">
+            <h4 class="mb-0">📤 Экспорт данных</h4>
+            <button class="btn btn-success" @click="exportToXML">Экспорт <span class="d-none d-md-inline">XML</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <div class="sticky-results">
+          <div class="calculator-section">
+            <h4 class="my-3">📊 Результаты</h4>
+            <div class="mb-4">
+              <div class="alert alert-primary">
+                <h5 class="mb-1">Общая ёмкость:</h5>
+                <div class="fs-3">{{ totalCapacity }} ч</div>
+              </div>
+              <div class="alert alert-warning">
+                <h5 class="mb-1">С учётом рисков:</h5>
+                <div class="fs-3">{{ adjustedCapacity }} ч</div>
+                <small class="d-block mt-1">Снижение на {{ settings.bugsFactor }}%</small>
+              </div>
+            </div>
+
+            <h5 class="mb-3">Индивидуальный вклад:</h5>
+            <div class="d-grid gap-3 my-3">
+              <div v-for="member in members" :key="member.id" class="d-grid gap-1">
+                <div class="d-flex justify-content-between">
+                  <small>{{ member.name || 'Имя сотрудника' }}</small>
+                  <strong>{{ personalCapacity(member) }} ч</strong>
+                </div>
+                <div class="progress" style="--bs-progress-height: 6px;">
+                  <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" :style="{ width: personalContribution(member) + '%' }">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const {
+      createApp,
+      computed,
+      watch,
+      ref
+    } = Vue;
+    const DEFAULT_LEVELS = [{
+        label: 'Junior',
+        value: 0.6
+      },
+      {
+        label: 'Middle',
+        value: 1.0
+      },
+      {
+        label: 'Middle+',
+        value: 1.2
+      },
+      {
+        label: 'Senior',
+        value: 1.5
+      }
+    ];
+    createApp({
+      setup() {
+        const STORAGE_KEY = 'teamCapacityData';
+        const savedState = localStorage.getItem(STORAGE_KEY);
+        const initialState = savedState ? JSON.parse(savedState) : {
+          members: [],
+          settings: {
+            hoursPerDay: 8,
+            workDays: 20,
+            bugsFactor: 15
+          },
+          levels: DEFAULT_LEVELS,
+          darkTheme: window.matchMedia('(prefers-color-scheme: dark)').matches
+        };
+        const members = Vue.reactive(initialState.members);
+        const settings = Vue.reactive(initialState.settings);
+        const levels = Vue.reactive(initialState.levels || DEFAULT_LEVELS);
+        const darkTheme = ref(initialState.darkTheme);
+        const xmlFile = ref(null);
+        const validationErrors = ref([]);
+        watch(() => settings.workDays, (newVal) => {
+          members.forEach(m => {
+            if (m.vacationDays > newVal) {
+              m.vacationDays = newVal;
+            }
+          });
+        });
+        watch([members, settings], () => {
+          const errors = [];
+          members.forEach((member, index) => {
+            if (!member.name?.trim()) {
+              errors.push(`Сотрудник #${index+1}: Не указано имя`);
+            }
+            if (member.vacationDays < 0 || member.vacationDays > settings.workDays) {
+              errors.push(`Сотрудник #${index+1}: Некорректные дни отпуска`);
+            }
+            if (!levels.some(l => l.value === member.level)) {
+              errors.push(`Сотрудник #${index+1}: Неверный уровень`);
+            }
+          });
+          // Добавляем проверки для новых ограничений
+          if (settings.hoursPerDay > 8) {
+            errors.push("Часов в день не может быть больше 8");
+            settings.hoursPerDay = 8;
+          }
+          if (settings.workDays > 23) {
+            errors.push("Рабочих дней не может быть больше 23");
+            settings.workDays = 23;
+          }
+          if (settings.bugsFactor > 25) {
+            errors.push("% на баги не может быть больше 25");
+            settings.bugsFactor = 25;
+          }
+          validationErrors.value = errors;
+          const state = {
+            members: members.map(m => ({
+              ...m
+            })),
+            settings: {
+              ...settings
+            },
+            levels: levels.map(l => ({
+              ...l
+            })),
+            darkTheme: darkTheme.value
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          if (!localStorage.getItem('BACKUP')) {
+            localStorage.setItem('BACKUP', JSON.stringify(state));
+          }
+        }, {
+          deep: true
+        });
+        watch(darkTheme, (newVal) => {
+          document.documentElement.setAttribute(
+            'data-bs-theme',
+            newVal ? 'dark' : 'light'
+          );
+          localStorage.setItem('darkTheme', newVal);
+        }, {
+          immediate: true
+        });
+        const totalCapacity = computed(() =>
+          Math.round(members.reduce((sum, member) => {
+            const presence = Math.max(settings.workDays - member.vacationDays, 0);
+            return sum + settings.hoursPerDay * presence * member.level;
+          }, 0))
+        );
+        const adjustedCapacity = computed(() =>
+          Math.round(totalCapacity.value * (1 - settings.bugsFactor / 100))
+        );
+        const presenceDays = (member) =>
+          Math.max(settings.workDays - member.vacationDays, 0);
+        const presencePercent = (member) =>
+          settings.workDays > 0 ?
+          Math.round((presenceDays(member) / settings.workDays) * 100) :
+          0;
+        const personalCapacity = (member) =>
+          Math.round(settings.hoursPerDay * presenceDays(member) * member.level);
+        const personalContribution = (member) =>
+          totalCapacity.value > 0 ?
+          Math.round((personalCapacity(member) / totalCapacity.value) * 100) :
+          0;
+        const addMember = () => {
+          members.push({
+            id: Date.now() + Math.random(),
+            name: '',
+            level: 1.0,
+            vacationDays: 0
+          });
+        };
+        const deleteMember = (id) => {
+          const index = members.findIndex(m => m.id === id);
+          if (index > -1) members.splice(index, 1);
+        };
+        const toggleTheme = () => {
+          darkTheme.value = !darkTheme.value;
+        };
+        const handleFileUpload = (event) => {
+          xmlFile.value = event.target.files[0];
+        };
+        const loadXml = async () => {
+          if (!xmlFile.value) return;
+          try {
+            const text = await xmlFile.value.text();
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(text, "text/xml");
+            if (xmlDoc.querySelector('parsererror')) {
+              throw new Error('Ошибка парсинга XML');
+            }
+            const newMembers = await Promise.all(
+              Array.from(xmlDoc.querySelectorAll('employee')).map(async emp => {
+                const xmlLevel = parseFloat(emp.querySelector('level')?.textContent);
+                const existingLevel = levels.find(l => l.value === xmlLevel);
+                if (!existingLevel && xmlLevel) {
+                  const confirmAdd = await new Promise(resolve => {
+                    const msg = `Уровень ${xmlLevel}x не найден. Добавить в список уровней?`;
+                    resolve(confirm(msg));
+                  });
+                  if (confirmAdd) {
+                    levels.push({
+                      label: `Custom ${xmlLevel}`,
+                      value: xmlLevel
+                    });
+                  }
+                }
+                return {
+                  id: Date.now() + Math.random(),
+                  name: emp.querySelector('name')?.textContent || '',
+                  level: existingLevel?.value ?? xmlLevel ?? 1.0,
+                  vacationDays: Math.min(
+                    parseInt(emp.querySelector('vacationDays')?.textContent) || 0,
+                    settings.workDays
+                  )
+                };
+              })
+            );
+            members.splice(0, members.length, ...newMembers);
+          } catch (error) {
+            validationErrors.value.push(error.message);
+          }
+        };
+        const exportToXML = () => {
+          const xmlDoc = document.implementation.createDocument(null, 'team');
+          const root = xmlDoc.documentElement;
+          const settingsNode = xmlDoc.createElement('settings');
+          Object.entries(settings).forEach(([key, value]) => {
+            const elem = xmlDoc.createElement(key);
+            elem.textContent = value;
+            settingsNode.appendChild(elem);
+          });
+          root.appendChild(settingsNode);
+          members.forEach(member => {
+            const employee = xmlDoc.createElement('employee');
+            Object.entries(member).forEach(([key, value]) => {
+              if (key !== 'id') {
+                const elem = xmlDoc.createElement(key);
+                elem.textContent = value;
+                employee.appendChild(elem);
+              }
+            });
+            root.appendChild(employee);
+          });
+          const xmlString = new XMLSerializer().serializeToString(xmlDoc);
+          const blob = new Blob([xmlString], {
+            type: 'application/xml'
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `team_capacity_${new Date().toISOString().slice(0,10)}.xml`;
+          a.click();
+          URL.revokeObjectURL(url);
+        };
+        const removeError = (index) => {
+          validationErrors.value.splice(index, 1);
+        };
+        return {
+          members,
+          settings,
+          levels,
+          darkTheme,
+          validationErrors,
+          totalCapacity,
+          adjustedCapacity,
+          presenceDays,
+          presencePercent,
+          personalCapacity,
+          personalContribution,
+          addMember,
+          deleteMember,
+          toggleTheme,
+          handleFileUpload,
+          loadXml,
+          exportToXML,
+          removeError
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+
+</html>
