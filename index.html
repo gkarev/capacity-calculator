@@ -14,7 +14,6 @@
       --border: #3c3c3c;
       --card-bg: #252526;
       font-size: 14px;
-
     }
 
     [data-bs-theme="light"] {
@@ -28,15 +27,12 @@
       background-color: var(--background);
       color: var(--foreground);
       font-family: Trebuchet MS, serif;
-      position: fixed;
-      inset: 0;
-      -webkit-overflow-scrolling: touch;
+      
     }
 
-    #app {
-      height: 100%;
-      overflow: auto;
-      -webkit-overflow-scrolling: touch;
+    html, body {
+      min-height: 100dvh;
+      overscroll-behavior: none;
     }
 
     .calculator-section {
